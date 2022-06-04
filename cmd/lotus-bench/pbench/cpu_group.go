@@ -132,7 +132,7 @@ func allocateCpu(ctx context.Context, aesc bool) (int, []int, error) {
 
 func syncAllocateCpu(ctx context.Context, aesc bool) (int, []int) {
 	for {
-		idx, group, err := allocateCpu(ctx, false)
+		idx, group, err := allocateCpu(ctx, aesc)
 		if err != nil {
 			log.Warn("allocate cpu failed, retry 1s later", errors.As(err))
 			time.Sleep(1e9)
