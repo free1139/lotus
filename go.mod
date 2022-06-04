@@ -225,6 +225,7 @@ require (
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/go-cmp v0.5.7 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
+	github.com/gwaylib/errors v0.0.0-20211126090330-1931a9c4fe20 // indirect
 	github.com/hannahhoward/cbor-gen-for v0.0.0-20200817222906-ea96cece81f1 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/huin/goupnp v1.0.3 // indirect

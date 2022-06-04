@@ -35,6 +35,7 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/cmd/lotus-bench/pbench"
 	"github.com/filecoin-project/lotus/genesis"
 )
 
@@ -111,6 +112,9 @@ func main() {
 			sealBenchCmd,
 			simpleCmd,
 			importBenchCmd,
+
+			pbench.ParallelBenchCmd,
+			pbench.ParallelBenchP2Cmd,
 		},
 	}
 
