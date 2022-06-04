@@ -107,7 +107,7 @@ func allocateGPU(ctx context.Context) (int, *GpuInfo, error) {
 		gpuKeys[i] = true
 		return i, &gpuInfo, nil
 	}
-	if len(gpuGroup) == 0 {
+	if len(gpuGroup) == 0 || !needGPU() {
 		// using cpu when no gpu hardware.
 		return 0, &GpuInfo{}, nil
 	}
