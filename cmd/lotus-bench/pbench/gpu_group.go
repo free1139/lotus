@@ -107,6 +107,10 @@ func allocateGPU(ctx context.Context) (int, *GpuInfo, error) {
 		gpuKeys[i] = true
 		return i, &gpuInfo, nil
 	}
+	if len(gpuGroup) == 0 {
+		// using cpu when no gpu hardware.
+		return 0, &GpuInfo{}, nil
+	}
 	return 0, nil, errors.New("allocate gpu failed").As(gpuKeys, gpuGroup)
 }
 
