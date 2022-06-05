@@ -52,6 +52,7 @@ RUST_LOG=info RUST_BACKTRACE=1 ./lotus-bench p-bench \
     --storage-dir=/data/cache/.lotus-bench \
     --sector-size=$size \
     --order=false \
+    --auto-release=true \
     --task-pool=6 \
     --parallel-addpiece=2 \
     --parallel-precommit1=2 \
@@ -67,7 +68,7 @@ nropen=$(cat /proc/sys/fs/nr_open)
 echo "max nofile limit:"$nropen
 echo "current nofile of $pid limit:"$(cat /proc/$pid/limits|grep "open files")
 #prlimit -p $pid --nofile=$nropen
-prlimit -p $pid --nofile=655350 # it's prefer with $nropen
+prlimit -p $pid --nofile=655350 # it's better than $nropen
 if [ $? -eq 0 ]; then
     echo "new nofile of $pid limit:"$(cat /proc/$pid/limits|grep "open files")
 else

@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -18,6 +19,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/specs-storage/storage"
 	"github.com/google/uuid"
+	"github.com/gwaylib/errors"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/minio/blake2b-simd"
 	"github.com/mitchellh/go-homedir"
@@ -47,24 +49,33 @@ var ParallelBenchCmd = &cli.Command{
 		},
 		&cli.BoolFlag{
 			Name:  "order",
-			Usage: "order the task run",
+			Usage: "run the tasks in order",
 			Value: true,
+		},
+		&cli.BoolFlag{
+			Name:  "auto-release",
+			Usage: "release the disk data when task end",
+			Value: false,
 		},
 		&cli.IntFlag{
 			Name:  "task-pool",
 			Value: 1,
+			Usage: "task producer. number of tasks want to testing",
 		},
 		&cli.IntFlag{
 			Name:  "parallel-addpiece",
 			Value: 1,
+			Usage: "concurrency of addpiece. be limited with cpu, disk io. ",
 		},
 		&cli.IntFlag{
 			Name:  "parallel-precommit1",
 			Value: 1,
+			Usage: "concurrency of precommit1. be limited with cpu, disk io. ",
 		},
 		&cli.IntFlag{
 			Name:  "parallel-precommit2",
 			Value: 1,
+			Usage: "concurrency of precommit2. be limited with cpu, gpu, disk io. ",
 		},
 		&cli.IntFlag{
 			Name:  "parallel-commit1",
@@ -73,6 +84,7 @@ var ParallelBenchCmd = &cli.Command{
 		&cli.IntFlag{
 			Name:  "parallel-commit2",
 			Value: 1,
+			Usage: "concurrency of commit2. be limited with  gpu. ",
 		},
 	},
 	Action: func(c *cli.Context) error {
@@ -138,30 +150,35 @@ var (
 	parallelLock = sync.Mutex{}
 	resultLk     = sync.Mutex{}
 
-	apParallel int32
-	apLimit    int32
-	apChan     chan *ParallelBenchTask
-	apResult   = []ParallelBenchResult{}
+	apParallel   int32
+	apLimit      int32
+	apTaskChan   chan *ParallelBenchTask
+	apWorkerChan chan bool
+	apResult     = []ParallelBenchResult{}
 
-	p1Parallel int32
-	p1Limit    int32
-	p1Chan     chan *ParallelBenchTask
-	p1Result   = []ParallelBenchResult{}
+	p1Parallel   int32
+	p1Limit      int32
+	p1TaskChan   chan *ParallelBenchTask
+	p1WorkerChan chan bool
+	p1Result     = []ParallelBenchResult{}
 
-	p2Parallel int32
-	p2Limit    int32
-	p2Chan     chan *ParallelBenchTask
-	p2Result   = []ParallelBenchResult{}
+	p2Parallel   int32
+	p2Limit      int32
+	p2TaskChan   chan *ParallelBenchTask
+	p2WorkerChan chan bool
+	p2Result     = []ParallelBenchResult{}
 
-	c1Parallel int32
-	c1Limit    int32
-	c1Chan     chan *ParallelBenchTask
-	c1Result   = []ParallelBenchResult{}
+	c1Parallel   int32
+	c1Limit      int32
+	c1TaskChan   chan *ParallelBenchTask
+	c1WorkerChan chan bool
+	c1Result     = []ParallelBenchResult{}
 
-	c2Parallel int32
-	c2Limit    int32
-	c2Chan     chan *ParallelBenchTask
-	c2Result   = []ParallelBenchResult{}
+	c2Parallel   int32
+	c2Limit      int32
+	c2TaskChan   chan *ParallelBenchTask
+	c2WorkerChan chan bool
+	c2Result     = []ParallelBenchResult{}
 
 	endEvent chan *ParallelBenchTask
 )
@@ -231,8 +248,8 @@ func canParallel(kind int, order bool) bool {
 	panic("not reach here")
 }
 
-func offsetParallelNum(task *ParallelBenchTask, offset int32) {
-	switch task.Type {
+func offsetParallelNum(kind int, offset int32) {
+	switch kind {
 	case TASK_KIND_ADDPIECE:
 		atomic.AddInt32(&apParallel, offset)
 	case TASK_KIND_PRECOMMIT1:
@@ -246,28 +263,6 @@ func offsetParallelNum(task *ParallelBenchTask, offset int32) {
 	default:
 		panic("not reach here")
 	}
-}
-
-func retryTask(task *ParallelBenchTask) {
-	time.Sleep(1e9)
-	switch task.Type {
-	case TASK_KIND_ADDPIECE:
-		apChan <- task
-		return
-	case TASK_KIND_PRECOMMIT1:
-		p1Chan <- task
-		return
-	case TASK_KIND_PRECOMMIT2:
-		p2Chan <- task
-		return
-	case TASK_KIND_COMMIT1:
-		c1Chan <- task
-		return
-	case TASK_KIND_COMMIT2:
-		c2Chan <- task
-		return
-	}
-	panic(fmt.Sprintf("not reach here:%d", task.Type))
 }
 
 func doBench(c *cli.Context) error {
@@ -284,18 +279,41 @@ func doBench(c *cli.Context) error {
 	}
 	sectorSize := abi.SectorSize(sectorSizeInt)
 	orderRun := c.Bool("order")
+	autoRelease := c.Bool("auto-release")
 	taskPool := c.Int("task-pool")
 	apLimit = int32(c.Int("parallel-addpiece"))
 	p1Limit = int32(c.Int("parallel-precommit1"))
 	p2Limit = int32(c.Int("parallel-precommit2"))
 	c1Limit = int32(c.Int("parallel-commit1"))
 	c2Limit = int32(c.Int("parallel-commit2"))
-	apChan = make(chan *ParallelBenchTask, apLimit)
-	p1Chan = make(chan *ParallelBenchTask, p1Limit)
-	p2Chan = make(chan *ParallelBenchTask, p2Limit)
-	c1Chan = make(chan *ParallelBenchTask, c1Limit)
-	c2Chan = make(chan *ParallelBenchTask, c2Limit)
+	apTaskChan = make(chan *ParallelBenchTask, apLimit)
+	p1TaskChan = make(chan *ParallelBenchTask, p1Limit)
+	p2TaskChan = make(chan *ParallelBenchTask, p2Limit)
+	c1TaskChan = make(chan *ParallelBenchTask, c1Limit)
+	c2TaskChan = make(chan *ParallelBenchTask, c2Limit)
 	endEvent = make(chan *ParallelBenchTask, taskPool)
+
+	apWorkerChan = make(chan bool, apLimit)
+	p1WorkerChan = make(chan bool, p1Limit)
+	p2WorkerChan = make(chan bool, p2Limit)
+	c1WorkerChan = make(chan bool, c1Limit)
+	c2WorkerChan = make(chan bool, c2Limit)
+	//make all woker is idle
+	for i := int32(0); i < apLimit; i++ {
+		apWorkerChan <- true
+	}
+	for i := int32(0); i < p1Limit; i++ {
+		p1WorkerChan <- true
+	}
+	for i := int32(0); i < p2Limit; i++ {
+		p2WorkerChan <- true
+	}
+	for i := int32(0); i < c1Limit; i++ {
+		c1WorkerChan <- true
+	}
+	for i := int32(0); i < c2Limit; i++ {
+		c2WorkerChan <- true
+	}
 
 	// build repo
 	sdir, err := homedir.Expand(c.String("storage-dir"))
@@ -319,7 +337,7 @@ func doBench(c *cli.Context) error {
 	// event producer
 	go func() {
 		for i := 0; i < taskPool; i++ {
-			apChan <- &ParallelBenchTask{
+			task := &ParallelBenchTask{
 				Type:       TASK_KIND_ADDPIECE,
 				SectorSize: sectorSize,
 				SectorID: abi.SectorID{
@@ -331,6 +349,8 @@ func doBench(c *cli.Context) error {
 
 				TicketPreimage: []byte(uuid.New().String()),
 			}
+
+			apTaskChan <- task
 		}
 	}()
 
@@ -338,36 +358,59 @@ func doBench(c *cli.Context) error {
 	exit := make(chan os.Signal, 2)
 	signal.Notify(exit, os.Interrupt, os.Kill)
 	ctx, cancel := context.WithCancel(context.TODO())
+	work := func() {
+		for {
+			select {
+			case <-apWorkerChan:
+				prepareTask(ctx, sb, apWorkerChan, apTaskChan, TASK_KIND_ADDPIECE, orderRun)
+			case <-p1WorkerChan:
+				prepareTask(ctx, sb, p1WorkerChan, p1TaskChan, TASK_KIND_PRECOMMIT1, orderRun)
+			case <-p2WorkerChan:
+				prepareTask(ctx, sb, p2WorkerChan, p2TaskChan, TASK_KIND_PRECOMMIT2, orderRun)
+			case <-c1WorkerChan:
+				prepareTask(ctx, sb, c1WorkerChan, c1TaskChan, TASK_KIND_COMMIT1, orderRun)
+			case <-c2WorkerChan:
+				prepareTask(ctx, sb, c2WorkerChan, c2TaskChan, TASK_KIND_COMMIT2, orderRun)
+			case <-ctx.Done():
+				// exit
+				fmt.Println("user canceled")
+				return
+			}
+		}
+	}
+
+	for wNum := apLimit + p1Limit + p2Limit + c1Limit + c2Limit; wNum > 0; wNum-- {
+		go work()
+	}
 
 	endSignal := taskPool
-consumer:
+result_wait:
 	for {
 		select {
-		case task := <-apChan:
-			prepareTask(ctx, sb, task, orderRun)
-		case task := <-p1Chan:
-			prepareTask(ctx, sb, task, orderRun)
-		case task := <-p2Chan:
-			prepareTask(ctx, sb, task, orderRun)
-		case task := <-c1Chan:
-			prepareTask(ctx, sb, task, orderRun)
-		case task := <-c2Chan:
-			prepareTask(ctx, sb, task, orderRun)
-
 		case task := <-endEvent:
-			fmt.Printf("done event:%s_%d\n", task.SectorName(), task.Type)
+			sName := task.SectorName()
+			fmt.Printf("done event:%s_%d, auto-release:%t\n", sName, task.Type, autoRelease)
+			if err := os.RemoveAll(filepath.Join(sdir, "cache", sName)); err != nil {
+				log.Warn(errors.As(err))
+			}
+			if err := os.RemoveAll(filepath.Join(sdir, "sealed", sName)); err != nil {
+				log.Warn(errors.As(err))
+			}
+			if err := os.RemoveAll(filepath.Join(sdir, "unseal", sName)); err != nil {
+				log.Warn(errors.As(err))
+			}
 			endSignal--
 			if endSignal > 0 {
-				continue consumer
+				continue result_wait
 			}
-			break consumer
+			break result_wait
 
 		case <-exit:
 			cancel()
 		case <-ctx.Done():
 			// exit
 			fmt.Println("user canceled")
-			break consumer
+			break result_wait
 		}
 	}
 
@@ -426,25 +469,27 @@ consumer:
 	return nil
 }
 
-func prepareTask(ctx context.Context, sb *Sealer, task *ParallelBenchTask, orderRun bool) {
+func prepareTask(ctx context.Context, sb *Sealer, workerChan chan bool, taskChan chan *ParallelBenchTask, kind int, orderRun bool) {
 	parallelLock.Lock()
-	if !canParallel(task.Type, orderRun) {
+	if !canParallel(kind, orderRun) {
 		parallelLock.Unlock()
-		//log.Infof("parallel limitted, retry task: %s_%d", task.SectorName(), task.Type)
-		go retryTask(task)
+		time.Sleep(1e9)
+		workerChan <- true // return the worker
 		return
 	}
-	offsetParallelNum(task, 1)
+	offsetParallelNum(kind, 1) // worker can have a task to work.
 	parallelLock.Unlock()
-	go runTask(ctx, sb, task)
+
+	task := <-taskChan
+	runTask(ctx, sb, task)
+
+	parallelLock.Lock()
+	offsetParallelNum(kind, -1)
+	parallelLock.Unlock()
+	workerChan <- true
 }
 
 func runTask(ctx context.Context, sb *Sealer, task *ParallelBenchTask) {
-	defer func() {
-		parallelLock.Lock()
-		offsetParallelNum(task, -1)
-		parallelLock.Unlock()
-	}()
 	sectorSize := task.SectorSize
 
 	sid := SectorRef{
@@ -482,7 +527,7 @@ func runTask(ctx context.Context, sb *Sealer, task *ParallelBenchTask) {
 		if p1Limit == 0 {
 			endEvent <- &newTask
 		} else {
-			p1Chan <- &newTask
+			p1TaskChan <- &newTask
 		}
 		return
 
@@ -511,7 +556,7 @@ func runTask(ctx context.Context, sb *Sealer, task *ParallelBenchTask) {
 		if p2Limit == 0 {
 			endEvent <- &newTask
 		} else {
-			p2Chan <- &newTask
+			p2TaskChan <- &newTask
 		}
 		return
 	case TASK_KIND_PRECOMMIT2:
@@ -547,7 +592,7 @@ func runTask(ctx context.Context, sb *Sealer, task *ParallelBenchTask) {
 		if c1Limit == 0 {
 			endEvent <- &newTask
 		} else {
-			c1Chan <- &newTask
+			c1TaskChan <- &newTask
 		}
 		return
 	case TASK_KIND_COMMIT1:
@@ -576,7 +621,7 @@ func runTask(ctx context.Context, sb *Sealer, task *ParallelBenchTask) {
 		if c2Limit == 0 {
 			endEvent <- &newTask
 		} else {
-			c2Chan <- &newTask
+			c2TaskChan <- &newTask
 		}
 		return
 
