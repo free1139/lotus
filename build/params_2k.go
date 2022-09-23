@@ -16,8 +16,8 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 )
 
-const BootstrappersFile = ""
-const GenesisFile = ""
+const BootstrappersFile = "devnet.pi"
+const GenesisFile = "devnet.car"
 
 var NetworkBundle = "devnet"
 var BundleOverrides map[actors.Version]string

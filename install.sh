@@ -26,7 +26,7 @@ case $1 in
 	unset CGO_CFLAGS
 	unset CGO_CFLAGS_ALLOW
 	unset FFI_USE_CUDA
-        cp -v scripts/bootstrappers.pi build/bootstrap/devnet.pi
+        cp -v scripts/devnet.pi build/bootstrap/devnet.pi
         cp -v scripts/devnet.car build/genesis/devnet.car
         make debug
     ;;
