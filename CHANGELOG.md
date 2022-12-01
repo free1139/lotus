@@ -145,7 +145,6 @@ If you have any questions or concerns, please raise them in [Lotus discussion](h
 | Peter Rabbitson | 1 | +3/-0 | 1 |
 | Jakub Sztandera | 1 | +1/-1 | 1 |
 
-
 # v1.17.2 / 2022-10-05
 
 This is an OPTIONAL release of Lotus. This feature release introduces new sector number management APIs in Lotus that enables all the Sealing-as-a-Service and Lotus interactions needed to function. The default propagation delay setting for storage providers has also been changed, as well as numerous other features and enhancements. Check out the sub-bullet points in the feature and enhancement section to get a short description about each feature and enhancements.
