@@ -179,6 +179,7 @@ func (i *Index) StorageAttach(ctx context.Context, si storiface.StorageInfo, st 
 	defer i.lk.Unlock()
 
 	log.Infof("New sector storage: %s", si.ID)
+	defer log.Infof("New sector storage done:%s", si.ID)
 
 	if _, ok := i.stores[si.ID]; ok {
 		for _, u := range si.URLs {
@@ -187,6 +188,7 @@ func (i *Index) StorageAttach(ctx context.Context, si storiface.StorageInfo, st 
 			}
 		}
 
+		log.Info("New sector storage parse url done")
 	uloop:
 		for _, u := range si.URLs {
 			for _, l := range i.stores[si.ID].info.URLs {
@@ -209,6 +211,7 @@ func (i *Index) StorageAttach(ctx context.Context, si storiface.StorageInfo, st 
 
 		return nil
 	}
+	log.Info("New sector storage load sector done")
 	i.stores[si.ID] = &storageEntry{
 		info: &si,
 		fsi:  st,

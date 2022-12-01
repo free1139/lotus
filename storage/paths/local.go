@@ -352,6 +352,9 @@ func (st *Local) Redeclare(ctx context.Context, filterId *storiface.ID, dropMiss
 }
 
 func (st *Local) declareSectors(ctx context.Context, p string, id storiface.ID, primary, dropMissing bool) error {
+	log.Infof("DEBUG: Local.delareSectors:%s", p)
+	defer log.Infof("DEBUG: Local.delareSectors done:%s", p)
+
 	indexed := map[storiface.Decl]struct{}{}
 	if dropMissing {
 		decls, err := st.index.StorageList(ctx)
