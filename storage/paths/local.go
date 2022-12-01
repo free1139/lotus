@@ -374,7 +374,7 @@ func (st *Local) declareSectors(ctx context.Context, p string, id storiface.ID, 
 
 	for _, t := range storiface.PathTypes {
 		log.Infof("DEBUG: Local.delareSectors read dir, %s", filepath.Join(p, t.String()))
-		ents, err := os.ReadDir(filepath.Join(p, t.String()))
+		ents, err := ReadDir(filepath.Join(p, t.String()))
 		if err != nil {
 			if os.IsNotExist(err) {
 				if err := os.MkdirAll(filepath.Join(p, t.String()), 0755); err != nil { // nolint
@@ -387,7 +387,8 @@ func (st *Local) declareSectors(ctx context.Context, p string, id storiface.ID, 
 		}
 
 		for n, ent := range ents {
-			if ent.Name() == FetchTempSubdir {
+			// if ent.Name() == FetchTempSubdir {
+			if ent == FetchTempSubdir {
 				continue
 			}
 
@@ -395,9 +396,9 @@ func (st *Local) declareSectors(ctx context.Context, p string, id storiface.ID, 
 				log.Infof("DEBUG: Local.delareSectors read ents, %s, all:%d, cur:%d", filepath.Join(p, t.String()), len(ents), n)
 			}
 
-			sid, err := storiface.ParseSectorID(ent.Name())
+			sid, err := storiface.ParseSectorID(ent)
 			if err != nil {
-				return xerrors.Errorf("parse sector id %s: %w", ent.Name(), err)
+				return xerrors.Errorf("parse sector id %s: %w", ent, err)
 			}
 
 			delete(indexed, storiface.Decl{
