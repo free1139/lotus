@@ -10,5 +10,15 @@ func ReadDir(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return strings.Split(string(content), "\n"), nil
+	names := strings.Split(string(content), "\n")
+	result := make([]string, len(names))
+	i := 0
+	for _, name := range names {
+		if len(name) == 0 {
+			continue
+		}
+		result[i] = name
+		i++
+	}
+	return result[:i], nil
 }
