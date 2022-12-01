@@ -352,8 +352,8 @@ func (st *Local) Redeclare(ctx context.Context, filterId *storiface.ID, dropMiss
 }
 
 func (st *Local) declareSectors(ctx context.Context, p string, id storiface.ID, primary, dropMissing bool) error {
-	log.Infof("DEBUG: Local.delareSectors:%s", p)
-	defer log.Infof("DEBUG: Local.delareSectors done:%s", p)
+	log.Infof("DEBUG: Local.delareSectors: %s", p)
+	defer log.Infof("DEBUG: Local.delareSectors done: %s", p)
 
 	indexed := map[storiface.Decl]struct{}{}
 	if dropMissing {
@@ -373,6 +373,7 @@ func (st *Local) declareSectors(ctx context.Context, p string, id storiface.ID, 
 	}
 
 	for _, t := range storiface.PathTypes {
+		log.Infof("DEBUG: Local.delareSectors read dir, %s", filepath.Join(p, t.String()))
 		ents, err := os.ReadDir(filepath.Join(p, t.String()))
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -385,9 +386,13 @@ func (st *Local) declareSectors(ctx context.Context, p string, id storiface.ID, 
 			return xerrors.Errorf("listing %s: %w", filepath.Join(p, t.String()), err)
 		}
 
-		for _, ent := range ents {
+		for n, ent := range ents {
 			if ent.Name() == FetchTempSubdir {
 				continue
+			}
+
+			if n%1000 == 0 {
+				log.Infof("DEBUG: Local.delareSectors read ents, %s, all:%d, cur:%d", filepath.Join(p, t.String()), len(ents), n)
 			}
 
 			sid, err := storiface.ParseSectorID(ent.Name())
