@@ -69,6 +69,7 @@ make lotus-shed
 make lotus-fountain
 if [ $SKIP_SEAL -eq 0 ]; then
     ./lotus-seed genesis new "${staging}/genesis.json"
+    ./lotus-seed genesis set-signers --signers="t14po2vrupy7buror4g55c7shlcrmwsjxbpss7dzy" "${staging}/genesis.json"
     ./lotus-seed --sector-dir="${sdt0111}" pre-seal --sector-offset=0 --sector-size=${SECTOR_SIZE} --num-sectors=${NUM_SECTORS}
     ./lotus-seed genesis add-miner "${staging}/genesis.json" "${sdt0111}/pre-seal-t01000.json"
 fi
@@ -78,7 +79,7 @@ rm -rf $ldt0111 && mkdir -p $ldt0111
 lotus_path=$ldt0111
 ./lotus --repo="${lotus_path}" daemon --lotus-make-genesis="${staging}/devnet.car" --import-key="${sdt0111}/pre-seal-t01000.key" --genesis-template="${staging}/genesis.json" --bootstrap=false &
 lpid=$!
-sleep 60 # TODO: timeout
+sleep 30
 kill "$lpid"
 wait
 
@@ -102,6 +103,7 @@ do
     ln -s ${sdt0111}/unsealed/$sector ${mdt0111}/unsealed/$sector
 done
 
+echo "" > build/bootstrap/devnet.pi
 cp "${staging}/devnet.car" build/genesis/devnet.car
 cp "${staging}/devnet.car" scripts/$car_name
 
