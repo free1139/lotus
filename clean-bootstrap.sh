@@ -14,7 +14,7 @@ killall -9 lotus
 killall -9 lotus-miner
 killall -9 lotus-fountain
 killall -9 lotus-seed
-sudo rm -rf /tmp/bellman*.lock
 sudo rm -rf /data/lotus/dev
-sudo rm -rf /root/.lotus
+sudo rm /tmp/bellman*.lock
+sudo rm /root/.lotus
 sudo ps axu|grep lotus

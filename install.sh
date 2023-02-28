@@ -23,8 +23,8 @@ echo "make "$1
 case $1 in
     "debug")
 	#unset RUSTFLAGS
-	unset CGO_CFLAGS
-	unset CGO_CFLAGS_ALLOW
+	#unset CGO_CFLAGS
+	#unset CGO_CFLAGS_ALLOW
 	unset FFI_USE_CUDA
         cp -v scripts/devnet.pi build/bootstrap/devnet.pi
         cp -v scripts/devnet.car build/genesis/devnet.car
