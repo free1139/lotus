@@ -37,22 +37,6 @@ SECTOR_SIZE=2048
 #SECTOR_SIZE=34359738368
 car_name="devnet.car"
 build_mode="debug"
-echo $1
-case $1 in
-    "fstar")
-        SECTOR_SIZE=64GiB
-        #SECTOR_SIZE=34359738368
-        #SECTOR_SIZE=536870912
-        car_name="devnet-fstar.car"
-        build_mode="fstar"
-    ;;
-
-    *)
-        SECTOR_SIZE=2048
-        car_name="devnet.car"
-        build_mode="debug"
-    ;;
-esac
 echo "SECTOR_SIZE:"$SECTOR_SIZE" mode:"$build_mode
 touch build/genesis/devnet.car
 touch build/bootstrap/devnet.pi
@@ -65,8 +49,6 @@ mkdir -p $sdt0111
 mkdir -p $staging
 
 make $build_mode
-make lotus-shed
-make lotus-fountain
 if [ $SKIP_SEAL -eq 0 ]; then
     ./lotus-seed genesis new "${staging}/genesis.json"
     ./lotus-seed genesis set-signers --signers="t14po2vrupy7buror4g55c7shlcrmwsjxbpss7dzy" "${staging}/genesis.json"
@@ -79,9 +61,9 @@ rm -rf $ldt0111 && mkdir -p $ldt0111
 lotus_path=$ldt0111
 ./lotus --repo="${lotus_path}" daemon --lotus-make-genesis="${staging}/devnet.car" --import-key="${sdt0111}/pre-seal-t01000.key" --genesis-template="${staging}/genesis.json" --bootstrap=false &
 lpid=$!
-sleep 30
-kill "$lpid"
-wait
+sleep 120
+kill $lpid
+wait $lpid
 
 mdt0111=/data/lotus/dev/.mdt0111 # $(mktemp -d)
 rm -rf $mdt0111 && mkdir -p $mdt0111
@@ -109,14 +91,15 @@ cp "${staging}/devnet.car" scripts/$car_name
 
 make $build_mode
 
-./lotus --repo="${ldt0111}" daemon --genesis="${staging}/devnet.car" --api "3000" --bootstrap=false &
+#./lotus --repo="${ldt0111}" daemon --genesis="${staging}/devnet.car" --api "3000" --bootstrap=false &
+./lotus --repo="${ldt0111}" daemon --api "3000" --bootstrap=false &
 lpid=$!
-sleep 10
+sleep 60
 
 env LOTUS_PATH="${ldt0111}" LOTUS_MINER_PATH="${mdt0111}" ./lotus-miner init --genesis-miner --actor=t01000 --pre-sealed-sectors="${sdt0111}" --pre-sealed-metadata="${sdt0111}/pre-seal-t01000.json" --nosync=true --sector-size="${SECTOR_SIZE}"
+sleep 10
 
 kill $lpid
 wait $lpid
-sleep 3
 
 echo "init done. using deploy-bootstrap.sh to deploy the daemons"
