@@ -22,7 +22,7 @@ export FFI_USE_CUDA=1
 echo "make "$1
 case $1 in
     "debug")
-	unset RUSTFLAGS
+	#unset RUSTFLAGS
 	unset CGO_CFLAGS
 	unset CGO_CFLAGS_ALLOW
 	unset FFI_USE_CUDA
