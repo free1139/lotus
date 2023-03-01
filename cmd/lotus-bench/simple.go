@@ -424,7 +424,7 @@ var simpleCommit1 = &cli.Command{
 
 		commd, err := cid.Parse(cctx.Args().Get(2))
 		if err != nil {
-			return xerrors.Errorf("parse commr: %w", err)
+			return xerrors.Errorf("parse commd: %w", err)
 		}
 
 		commr, err := cid.Parse(cctx.Args().Get(3))
@@ -913,7 +913,7 @@ var simpleProveReplicaUpdate1 = &cli.Command{
 
 		oldcommr, err := cid.Parse(cctx.Args().Get(4))
 		if err != nil {
-			return xerrors.Errorf("parse commr: %w", err)
+			return xerrors.Errorf("parse oldcommr: %w", err)
 		}
 
 		commr, err := cid.Parse(cctx.Args().Get(5))
@@ -923,7 +923,7 @@ var simpleProveReplicaUpdate1 = &cli.Command{
 
 		commd, err := cid.Parse(cctx.Args().Get(6))
 		if err != nil {
-			return xerrors.Errorf("parse commr: %w", err)
+			return xerrors.Errorf("parse commd: %w", err)
 		}
 
 		rvp, err := sealer.ProveReplicaUpdate1(ctx, sr, oldcommr, commr, commd)
