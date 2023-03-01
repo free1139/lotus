@@ -71,6 +71,9 @@ rm -rf $mdt0111 && mkdir -p $mdt0111
 # link the pre-seal data to repo
 mkdir -p ${mdt0111}/cache
 mkdir -p ${mdt0111}/sealed
+mkdir -p ${mdt0111}/update-cache
+mkdir -p ${mdt0111}/update
+mkdir -p ${mdt0111}/deal-staging
 mkdir -p ${mdt0111}/unsealed
 for sector in `ls ${sdt0111}/cache`
 do
