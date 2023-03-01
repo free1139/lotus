@@ -779,6 +779,11 @@ workflows:
           target: "./itests/pending_deal_allocation_test.go"
       
       - test:
+          name: test-itest-raft_messagesigner
+          suite: itest-raft_messagesigner
+          target: "./itests/raft_messagesigner_test.go"
+      
+      - test:
           name: test-itest-remove_verifreg_datacap
           suite: itest-remove_verifreg_datacap
           target: "./itests/remove_verifreg_datacap_test.go"
