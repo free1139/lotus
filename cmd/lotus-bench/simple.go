@@ -62,6 +62,10 @@ $ ./lotus-bench simple commit2 /tmp/c1.json
 Commit2: 13.829147792s (148 B/s)
 proof: 8b624a6a4b272a6196517f858d07205c586cfae77fc026e8e9340acefbb8fc1d5af25b33724756c0a4481a800e14ff1ea914c3ce20bf6e2932296ad8ffa32867989ceae62e50af1479ca56a1ea5228cc8acf5ca54bc0b8e452bf74194b758b2c12ece76599a8b93f6b3dd9f0b1bb2e023bf311e9a404c7d453aeddf284e46025b63b631610de6ff6621bc6f630a14dd3ad59edbe6e940fdebbca3d97bea2708fd21764ea929f4699ebc93d818037a74be3363bdb2e8cc29b3e386c6376ff98fa
 
+> Run FinalizeSector
+
+$ ./lotus-bench simple finalize --sector-size 2k /tmp/cache
+
 ----
 Example PoSt steps:
 
@@ -104,6 +108,15 @@ ProveReplicaUpdate1 18.373375ms (108.9 KiB/s)
 $ ./lotus-bench simple provereplicaupdate2 --sector-size 2K bagboea4b5abcbrshxgmmpaucffwp2elaofbcrvb7hmcu3653o4lsw2arlor4hn3c bagboea4b5abcaydcwlbtdx5dph2a3efpqt42emxpn3be76iu4e4lx3ltrpmpi7af baga6ea4seaqkt24j5gbf2ye2wual5gn7a5yl2tqb52v2sk4nvur4bdy7lg76cdy /tmp/pr1.json
 ProveReplicaUpdate2 7.339033459s (279 B/s)
 p: pvC0JBrEyUqtIIUvB2UUx/2a24c3Cvnu6AZ0D3IMBYAu...
+
+> Run FinalizeReplicaUpdate
+
+$ ./lotus-bench simple finalize-replica-update --sector-size 2k /tmp/cache /tmp/update-cache
+
+> Run UnsealPiece
+
+$ ./lotus-bench simple unseal --sector-size 2k /tmp/sealed /tmp/cache /tmp/update /tmp/out-unsealed baga6ea4seaqpy7usqklokfx2vxuynmupslkeutzexe2uqurdg5vhtebhxqmpqmy
+
 `,
 	Subcommands: []*cli.Command{
 		simpleAddPiece,
@@ -111,11 +124,14 @@ p: pvC0JBrEyUqtIIUvB2UUx/2a24c3Cvnu6AZ0D3IMBYAu...
 		simplePreCommit2,
 		simpleCommit1,
 		simpleCommit2,
+		simpleFinalize,
 		simpleWindowPost,
 		simpleWinningPost,
 		simpleReplicaUpdate,
 		simpleProveReplicaUpdate1,
 		simpleProveReplicaUpdate2,
+		simpleFinalizeReplicaUpdate,
+		simpleUnsealPiece,
 	},
 }
 
@@ -408,7 +424,7 @@ var simpleCommit1 = &cli.Command{
 
 		commd, err := cid.Parse(cctx.Args().Get(2))
 		if err != nil {
-			return xerrors.Errorf("parse commr: %w", err)
+			return xerrors.Errorf("parse commd: %w", err)
 		}
 
 		commr, err := cid.Parse(cctx.Args().Get(3))
@@ -526,6 +542,69 @@ var simpleCommit2 = &cli.Command{
 
 		fmt.Printf("Commit2: %s (%s)\n", dur, bps(abi.SectorSize(c2in.SectorSize), 1, dur))
 		fmt.Printf("proof: %x\n", proof)
+		return nil
+	},
+}
+
+var simpleFinalize = &cli.Command{
+	Name: "finalize",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "sector-size",
+			Value: "512MiB",
+			Usage: "size of the sectors in bytes, i.e. 32GiB",
+		},
+		&cli.StringFlag{
+			Name:  "miner-addr",
+			Usage: "pass miner address (only necessary if using existing sectorbuilder)",
+			Value: "t01000",
+		},
+	},
+	ArgsUsage: "[/tmp/cache]",
+	Action: func(cctx *cli.Context) error {
+		ctx := cctx.Context
+
+		pp := benchSectorProvider{
+			storiface.FTCache: cctx.Args().Get(0),
+		}
+		sealer, err := ffiwrapper.New(pp)
+		if err != nil {
+			return err
+		}
+		maddr, err := address.NewFromString(cctx.String("miner-addr"))
+		if err != nil {
+			return err
+		}
+		amid, err := address.IDFromAddress(maddr)
+		if err != nil {
+			return err
+		}
+		mid := abi.ActorID(amid)
+
+		sectorSizeInt, err := units.RAMInBytes(cctx.String("sector-size"))
+		if err != nil {
+			return err
+		}
+		sectorSize := abi.SectorSize(sectorSizeInt)
+
+		sr := storiface.SectorRef{
+			ID: abi.SectorID{
+				Miner:  mid,
+				Number: 1,
+			},
+			ProofType: spt(sectorSize),
+		}
+
+		start := time.Now()
+
+		if err := sealer.FinalizeSector(ctx, sr); err != nil {
+			return xerrors.Errorf("finalize: %w", err)
+		}
+
+		took := time.Now().Sub(start)
+
+		fmt.Printf("Finalize %s (%s)\n", took, bps(sectorSize, 1, took))
+
 		return nil
 	},
 }
@@ -834,7 +913,7 @@ var simpleProveReplicaUpdate1 = &cli.Command{
 
 		oldcommr, err := cid.Parse(cctx.Args().Get(4))
 		if err != nil {
-			return xerrors.Errorf("parse commr: %w", err)
+			return xerrors.Errorf("parse oldcommr: %w", err)
 		}
 
 		commr, err := cid.Parse(cctx.Args().Get(5))
@@ -844,7 +923,7 @@ var simpleProveReplicaUpdate1 = &cli.Command{
 
 		commd, err := cid.Parse(cctx.Args().Get(6))
 		if err != nil {
-			return xerrors.Errorf("parse commr: %w", err)
+			return xerrors.Errorf("parse commd: %w", err)
 		}
 
 		rvp, err := sealer.ProveReplicaUpdate1(ctx, sr, oldcommr, commr, commd)
@@ -953,6 +1032,142 @@ var simpleProveReplicaUpdate2 = &cli.Command{
 
 		fmt.Printf("ProveReplicaUpdate2 %s (%s)\n", took, bps(sectorSize, 1, took))
 		fmt.Println("p:", base64.StdEncoding.EncodeToString(p))
+
+		return nil
+	},
+}
+var simpleFinalizeReplicaUpdate = &cli.Command{
+	Name: "finalize-replica-update",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "sector-size",
+			Value: "512MiB",
+			Usage: "size of the sectors in bytes, i.e. 32GiB",
+		},
+		&cli.StringFlag{
+			Name:  "miner-addr",
+			Usage: "pass miner address (only necessary if using existing sectorbuilder)",
+			Value: "t01000",
+		},
+	},
+	ArgsUsage: "[cache] [update-cache]",
+	Action: func(cctx *cli.Context) error {
+		ctx := cctx.Context
+
+		pp := benchSectorProvider{
+			storiface.FTCache:       cctx.Args().Get(0),
+			storiface.FTUpdateCache: cctx.Args().Get(1),
+		}
+		sealer, err := ffiwrapper.New(pp)
+		if err != nil {
+			return err
+		}
+		maddr, err := address.NewFromString(cctx.String("miner-addr"))
+		if err != nil {
+			return err
+		}
+		amid, err := address.IDFromAddress(maddr)
+		if err != nil {
+			return err
+		}
+		mid := abi.ActorID(amid)
+
+		sectorSizeInt, err := units.RAMInBytes(cctx.String("sector-size"))
+		if err != nil {
+			return err
+		}
+		sectorSize := abi.SectorSize(sectorSizeInt)
+
+		sr := storiface.SectorRef{
+			ID: abi.SectorID{
+				Miner:  mid,
+				Number: 1,
+			},
+			ProofType: spt(sectorSize),
+		}
+
+		start := time.Now()
+
+		if err := sealer.FinalizeReplicaUpdate(ctx, sr); err != nil {
+			return xerrors.Errorf("finalize-replica-update: %w", err)
+		}
+
+		took := time.Now().Sub(start)
+
+		fmt.Printf("FinalizeReplicaUpdate %s (%s)\n", took, bps(sectorSize, 1, took))
+
+		return nil
+	},
+}
+
+var simpleUnsealPiece = &cli.Command{
+	Name: "unseal",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "sector-size",
+			Value: "512MiB",
+			Usage: "size of the sectors in bytes, i.e. 32GiB",
+		},
+		&cli.StringFlag{
+			Name:  "miner-addr",
+			Usage: "pass miner address (only necessary if using existing sectorbuilder)",
+			Value: "t01000",
+		},
+	},
+	ArgsUsage: "[sealed] [cache] [update] [unsealed] [commd]",
+	Action: func(cctx *cli.Context) error {
+		ctx := cctx.Context
+
+		pp := benchSectorProvider{
+			storiface.FTSealed:   cctx.Args().Get(0),
+			storiface.FTCache:    cctx.Args().Get(1),
+			storiface.FTUpdate:   cctx.Args().Get(2),
+			storiface.FTUnsealed: cctx.Args().Get(3),
+		}
+		sealer, err := ffiwrapper.New(pp)
+		if err != nil {
+			return err
+		}
+		maddr, err := address.NewFromString(cctx.String("miner-addr"))
+		if err != nil {
+			return err
+		}
+		amid, err := address.IDFromAddress(maddr)
+		if err != nil {
+			return err
+		}
+		mid := abi.ActorID(amid)
+
+		sectorSizeInt, err := units.RAMInBytes(cctx.String("sector-size"))
+		if err != nil {
+			return err
+		}
+		sectorSize := abi.SectorSize(sectorSizeInt)
+
+		var ticket [32]byte // all zero
+
+		commd, err := cid.Parse(cctx.Args().Get(4))
+		if err != nil {
+			return xerrors.Errorf("parse commd(%s): %w", cctx.Args().Get(4), err)
+		}
+
+		sr := storiface.SectorRef{
+			ID: abi.SectorID{
+				Miner:  mid,
+				Number: 1,
+			},
+			ProofType: spt(sectorSize),
+		}
+
+		start := time.Now()
+
+		if err := sealer.UnsealPiece(ctx, sr, 0, abi.PaddedPieceSize(sectorSize).Unpadded(), ticket[:], commd); err != nil {
+			return xerrors.Errorf("unseal-piece: %w", err)
+		}
+
+		took := time.Now().Sub(start)
+
+		fmt.Printf("UnsealPiece %s (%s)\n", took, bps(sectorSize, 1, took))
 
 		return nil
 	},
