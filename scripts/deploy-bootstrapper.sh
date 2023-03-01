@@ -12,14 +12,12 @@ sudo systemctl stop lotus-genesis-miner &
 sudo systemctl stop lotus-genesis-daemon &
 wait 
 
+repo=/data/lotus/dev/.lotus
+
 log 'Initializing repo'
 
-sudo mkdir -p /data/lotus/dev/.lotus
+sudo mkdir -p $repo
 sudo mkdir -p /var/log/lotus
-if sudo test "-f /root/.lotus"; then
-    sudo rm -rf /root/.lotus
-    sudo ln -s /data/lotus/dev/.lotus /root/.lotus
-fi
 
 sudo cp -f lotus /usr/local/bin
 sudo cp -f lotus-miner /usr/local/bin
@@ -40,22 +38,31 @@ sudo systemctl start lotus-genesis-miner
 sudo systemctl enable lotus-daemon
 sudo systemctl start lotus-daemon
 
-sudo cp scripts/bootstrap.toml /data/lotus/dev/.lotus/config.toml
-sudo bash -c "echo -e '[Metrics]\nNickname=\"Boot-bootstrap\"' >> /data/lotus/dev/.lotus/config.toml"
+sudo cp scripts/bootstrap.toml $repo/config.toml
+sudo bash -c "echo -e '[Metrics]\nNickname=\"Boot-bootstrap\"' >> $repo/config.toml"
 sudo systemctl restart lotus-daemon
 
 sleep 30
 
 log 'Extracting addr info'
-sudo lotus --repo=/data/lotus/dev/.lotus net listen > scripts/devnet.pi
+sudo lotus --repo=$repo net listen > scripts/devnet.pi
 
 log 'Connect to t0111'
 genesisAddr=$(sudo lotus --repo=/data/lotus/dev/.ldt0111 net listen|grep "127.0.0.1")
-sudo lotus --repo=/data/lotus/dev/.lotus net connect $genesisAddr
+sudo lotus --repo=$repo net connect $genesisAddr
 
-log 'Get fil from t0111'
-walletAddr=$(sudo lotus --repo=/data/lotus/dev/.lotus wallet new)
-sudo lotus --repo=/data/lotus/dev/.ldt0111 send $walletAddr 10000000
+sudo lotus --repo=$repo wallet default
+if [ $? -ne 0 ]; then
+    log 'Get fil from t0111'
+    walletAddr=$(sudo lotus --repo=$repo  wallet new bls)
+    sudo lotus --repo=/data/lotus/dev/.ldt0111 send $walletAddr 90000000
+    git checkout ./build
+fi
+
+if sudo test "-f /root/.lotus"; then
+    sudo rm -rf /root/.lotus
+    sudo ln -s $repo /root/.lotus
+fi
 
 sudo ps axu|grep "lotus"
 
