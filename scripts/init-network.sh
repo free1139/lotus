@@ -85,7 +85,6 @@ do
     ln -s ${sdt0111}/unsealed/$sector ${mdt0111}/unsealed/$sector
 done
 
-echo "" > build/bootstrap/devnet.pi
 cp "${staging}/devnet.car" build/genesis/devnet.car
 cp "${staging}/devnet.car" scripts/$car_name
 
