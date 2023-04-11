@@ -55,7 +55,7 @@ sudo lotus --repo=$repo wallet default
 if [ $? -ne 0 ]; then
     log 'Get fil from t0111'
     walletAddr=$(sudo lotus --repo=$repo  wallet new bls)
-    sudo lotus --repo=/data/lotus/dev/.ldt0111 send $walletAddr 90000000
+    sudo lotus --repo=/data/lotus/dev/.ldt0111 send $walletAddr 40000000
     git checkout ./build
 fi
 
